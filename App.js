@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import MentalHealthTestScreen from './src/screens/MentalHealthTestScreen';
 import VoiceDetectionScreen from './src/screens/VoiceDetectionScreen';
 import ResultAnalysisScreen from './src/screens/ResultAnalysisScreen';
@@ -19,6 +20,7 @@ export default function App() {
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="MentalHealthTest" component={MentalHealthTestScreen} />
         <Stack.Screen name="VoiceDetection" component={VoiceDetectionScreen} />
         <Stack.Screen name="ResultAnalysis" component={ResultAnalysisScreen} />

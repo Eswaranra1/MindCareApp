@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, Alert } from 'react-native';
 import CustomButton from '../components/CustomButton';
-import { signUp, login, forgotPassword } from '../utils/api';
+import { signUp, login } from '../utils/api';
 
 export default function SignupScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -33,18 +33,6 @@ export default function SignupScreen({ navigation }) {
     }
   };
 
-  const handleForgot = async () => {
-    if (!email) {
-      return Alert.alert('Validation', 'Enter your email!');
-    }
-    try {
-      const res = await forgotPassword(email);
-      Alert.alert('Info', res.data.message);
-    } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Unknown error');
-    }
-  };
-
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
       <TextInput
@@ -64,7 +52,7 @@ export default function SignupScreen({ navigation }) {
       />
       <CustomButton title="Create Account" onPress={handleSignup} />
       <CustomButton title="Login" onPress={handleLogin} style={{ backgroundColor: '#44bb66' }} />
-      <CustomButton title="Forgot Password?" onPress={handleForgot} style={{ backgroundColor: '#bbb' }} />
+      <CustomButton title="Forgot Password?" onPress={() => navigation.navigate('ResetPassword')} style={{ backgroundColor: '#07737dff' }}/>
     </View>
   );
 }
