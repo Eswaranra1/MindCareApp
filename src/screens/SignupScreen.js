@@ -30,7 +30,7 @@ export default function SignupScreen({ navigation }) {
   const handleForgot = async () => {
     try {
       const res = await forgotPassword(email);
-      Alert.alert(res.data.message || "Check your email for reset link.");
+      Alert.alert(res.data.message || 'Check your email for reset link.');
     } catch (err) {
       Alert.alert('Error', err?.response?.data?.error || 'Unknown error');
     }
