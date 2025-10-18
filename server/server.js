@@ -9,10 +9,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connection URI in .env file for security (replace YOURPASSWORD and mindcare DB name)
-const uri = process.env.MONGODB_URI || 'mongodb+srv://eswarans_db_user:EswaranMA1@cluster0.gtfmjlc.mongodb.net/mindcare?retryWrites=true&w=majority';
+const uri = process.env.MONGODB_URI;
 
-mongoose.connect(uri);
+async function main() {
+  try {
+    await mongoose.connect(uri);
+    console.log('MongoDB connected');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+  }
+}
+main();
 
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
@@ -23,33 +30,53 @@ const User = mongoose.model('User', userSchema);
 app.post('/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return res.status(400).json({ error: 'Please enter a valid email.' });
+
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ error: 'User already exists.' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword });
     await user.save();
+
     res.json({ message: 'Account created!' });
   } catch (err) {
-    if (err.code === 11000) res.status(400).json({ error: 'User already exists' });
-    else res.status(500).json({ error: 'Internal error' });
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Password incorrect' });
-    const token = jwt.sign({ email: user.email }, 'your_jwt_secret'); // Use env var in prod
+
+    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || 'secret');
     res.json({ message: 'Login successful!', token });
-  } catch {
-    res.status(500).json({ error: 'Internal error' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.post('/forgot', async (req, res) => {
-  // Add forgot password implementation here
-  res.json({ message: 'Forgot password feature not implemented.' });
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+  // Here you can implement sending reset email or any logic you want
+  res.json({ message: 'Forgot password feature not implemented yet.' });
 });
 
-app.listen(5000, () => console.log('API running on port 5000'));
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => console.log(`API running on port ${PORT}`));

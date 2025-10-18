@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const BASE_URL = 'http://192.168.68.110:5000'; // Your local IP and backend port
+const BASE_URL = 'http://192.168.68.110:8000'; // Replace with your backend IP and port
 
 export const signUp = async (email, password) => {
   return axios.post(`${BASE_URL}/signup`, { email, password });
