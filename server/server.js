@@ -50,6 +50,7 @@ app.post('/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword });
     await user.save();
+
     res.json({ message: 'Account created!' });
   } catch (err) {
     console.error(err);
@@ -63,6 +64,7 @@ app.post('/login', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Password incorrect' });
     res.json({ message: 'Login successful!' });
