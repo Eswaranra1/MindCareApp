@@ -174,10 +174,10 @@ No explanation, comments, or markdown.
     res.status(200).json({
       meditations: [
         { title: "Practice Mindfulness", url: "https://www.youtube.com/embed/O-6f5wQXSu8" },
-        { title: "Deep Breathing", url: "https://www.youtube.com/embed/rR9FfXZ_CSA" }
+        { title: "Deep Breathing", url: "https://youtu.be/acUZdGd_3Dg?si=Fym8bGyVpDbHdE97" }
       ],
       musics: [
-        { title: "Calm Piano", url: "https://www.youtube.com/embed/xT7Apxmplc8" },
+        { title: "Calm Piano", url: "https://youtu.be/hlWiI4xVXKY?si=Hpgf_9TGtkBU8ZAY" },
         { title: "Nature Sounds", url: "https://www.youtube.com/embed/eKFTSSKCzWA" }
       ],
       quotes: [

@@ -92,7 +92,7 @@ export default function ActivitiesScreen({ route }) {
           />
           <CustomButton
             title="More Affirmations"
-            onPress={() => Linking.openURL('https://www.thelawofattraction.com/101-powerful-affirmations/')}
+            onPress={() => Linking.openURL('https://www.thegoodtrade.com/features/positive-affirmations-morning-routine/')}
             style={styles.btn}
           />
         </>
