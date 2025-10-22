@@ -1,32 +1,30 @@
+// api/index.js
 require('dotenv').config();
-const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const axios = require('axios');
+const cors = require('cors');
+const express = require('express');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const uri = process.env.MONGODB_URI;
-const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 
-async function main() {
-  try {
-    await mongoose.connect(uri);
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-  }
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  await mongoose.connect(uri);
+  isConnected = true;
+  console.log('MongoDB connected');
 }
-main();
 
+// MongoDB models
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
   password: String
 });
-const User = mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 const mentalResultSchema = new mongoose.Schema({
   userEmail: String,
@@ -36,9 +34,11 @@ const mentalResultSchema = new mongoose.Schema({
   stressScore: Number,
   timestamp: { type: Date, default: Date.now }
 });
-const MentalResult = mongoose.model('MentalResult', mentalResultSchema);
+const MentalResult = mongoose.models.MentalResult || mongoose.model('MentalResult', mentalResultSchema);
 
+// Routes
 app.post('/signup', async (req, res) => {
+  await connectDB();
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
@@ -58,6 +58,7 @@ app.post('/signup', async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
+  await connectDB();
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
@@ -73,28 +74,25 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/reset-password', async (req, res) => {
-  const { email, newPassword } = req.body;
-  if (!email || !newPassword) {
-    return res.status(400).json({ error: 'Email and new password are required.' });
-  }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-  }
+  await connectDB();
   try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) return res.status(400).json({ error: 'Email and new password are required.' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found. Please create an account.' });
-    }
+    if (!user) return res.status(404).json({ error: 'User not found. Please create an account.' });
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
     await user.save();
     res.json({ message: 'Password reset successful! You can now login.' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 app.post('/mentalhealthresults', async (req, res) => {
+  await connectDB();
   try {
     const { userEmail, answers, depressionScore, anxietyScore, stressScore } = req.body;
     const result = new MentalResult({ userEmail, answers, depressionScore, anxietyScore, stressScore });
@@ -107,13 +105,18 @@ app.post('/mentalhealthresults', async (req, res) => {
 });
 
 app.get('/mentalhealthresults/:email', async (req, res) => {
+  await connectDB();
   try {
     const results = await MentalResult.find({ userEmail: req.params.email }).sort({ timestamp: -1 });
     res.json(results);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to fetch results' });
   }
 });
+
+const axios = require('axios');
+const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 
 app.post('/recommendations', async (req, res) => {
   const { depression, anxiety, stress, mood } = req.body;
@@ -156,17 +159,14 @@ No explanation, comments, or markdown.
         timeout: 90000
       }
     );
+
     let textOut = routerResp.data.choices?.[0]?.message?.content || '';
     textOut = textOut.match(/{[\s\S]*}/)?.[0] || textOut;
-
-    // Sanitize common malformed JSON from LLM (double quotes inside strings)
-    let safeTextOut = textOut.replace(/""/g, '"').replace(/\\"/g, "'");
-
     let parsed;
     try {
-      parsed = JSON.parse(safeTextOut);
+      parsed = JSON.parse(textOut);
     } catch (jsonErr) {
-      throw new Error("Could not parse OpenRouter JSON: " + safeTextOut);
+      throw new Error("Could not parse OpenRouter JSON: " + textOut);
     }
     res.json(parsed);
   } catch (err) {
@@ -196,5 +196,8 @@ No explanation, comments, or markdown.
   }
 });
 
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, '0.0.0.0', () => console.log(`API running on port ${PORT}`));
+module.exports = app;
+
+// Vercel serverless function entry point
+const serverless = require('serverless-http');
+module.exports.handler = serverless(app);
