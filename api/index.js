@@ -152,7 +152,7 @@ No explanation, comments, or markdown.
       {
         headers: {
           "Authorization": `Bearer ${OPENROUTER_KEY}`,
-          "HTTP-Referer": "https://yourapp.com",
+          "HTTP-Referer": "https://mind-care-app.com",
           "X-Title": "MindCareApp",
           "Content-Type": "application/json"
         },
@@ -201,3 +201,4 @@ module.exports = app;
 // Vercel serverless function entry point
 const serverless = require('serverless-http');
 module.exports.handler = serverless(app);
+app.listen(8000, () => console.log("Running locally"));
