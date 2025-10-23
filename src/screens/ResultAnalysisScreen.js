@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { BarChart } from "react-native-chart-kit";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { BASE_URL } from "../utils/api";
+import { parseJwt } from '../utils/auth';
 import axios from 'axios';
 
 export default function ResultAnalysisScreen({ navigation, route }) {
@@ -10,10 +12,18 @@ export default function ResultAnalysisScreen({ navigation, route }) {
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    axios.get(`${BASE_URL}/mentalhealthresults/${userEmail}`)
+  (async () => {
+    const token = await AsyncStorage.getItem('userToken');
+    const userObj = parseJwt(token);
+    const userEmail = userObj?.email;
+
+    axios.get(`${BASE_URL}/mentalhealthresults/${userEmail}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
       .then(res => setHistory(res.data))
       .catch(() => {});
-  }, []);
+  })();
+}, []);
 
   const latest = { depressionScore, anxietyScore, stressScore };
 

@@ -26,11 +26,9 @@ with open(LABELS_PATH, 'r') as f:
     labels = json.load(f)
 
 def extract_features_for_model(file_path):
-    # Use pyAudioAnalysis short-term features to extract a feature vector (mean over windows)
     [Fs, x] = audioBasicIO.read_audio_file(file_path)
     x = audioBasicIO.stereo_to_mono(x)
     F, f_names = ShortTermFeatures.feature_extraction(x, Fs, 0.025*Fs, 0.01*Fs)
-    # Take mean of each row -> feature vector length = number of short-term features (34)
     feature_vector = np.mean(F, axis=1)
     return feature_vector
 
@@ -39,26 +37,19 @@ def analyze_audio():
     file = request.files.get('file')
     if not file:
         return jsonify({'error': 'no file provided'}), 400
-
     tmp_path = 'temp_audio.wav'
     file.save(tmp_path)
-
     try:
-        # Load raw audio with librosa for pitch and tempo
         y, sr = librosa.load(tmp_path, sr=None)
         pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
         valid_pitches = pitches[pitches > 0]
         pitch = float(np.mean(valid_pitches)) if valid_pitches.size > 0 else 0.0
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         speed = float(tempo)
-
-        # Extract features and predict emotion
         feature_vector = extract_features_for_model(tmp_path)
         feature_vector_scaled = scaler.transform([feature_vector])
         pred = model.predict(feature_vector_scaled)[0]
         emotion = labels[int(pred)] if int(pred) < len(labels) else "Neutral"
-
-        # Map simple mood from emotion
         mood_map = {
             'Neutral': 'Neutral',
             'Happy': 'Happy',
@@ -67,7 +58,6 @@ def analyze_audio():
             'Fear': 'Fear'
         }
         mood = mood_map.get(emotion, 'Neutral')
-
         return jsonify({
             'pitch': pitch,
             'speed': speed,

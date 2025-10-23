@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { WebView } from 'react-native-webview';
 import axios from 'axios';
@@ -15,16 +16,29 @@ export default function ActivitiesScreen({ route }) {
   const [loading, setLoading] = useState(true);
 
   // Fetch new personalized recommendations every mount or when scores/mood change
-  useEffect(() => {
+ useEffect(() => {
+  const fetchRecommendations = async () => {
     setLoading(true);
-    axios.post(`${BASE_URL}/recommendations`, { depression, anxiety, stress, mood })
-      .then(res => setAiReco(res.data))
-      .catch(err => {
-        setAiReco(null);
-        console.error("AI Fetch error:", err?.response?.data ?? err.message);
-      })
-      .finally(() => setLoading(false));
-  }, [depression, anxiety, stress, mood]);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await axios.post(
+        `${BASE_URL}/recommendations`,
+        { depression, anxiety, stress, mood },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setAiReco(res.data);
+    } catch (err) {
+      setAiReco(null);
+      console.error("AI Fetch error:", err?.response?.data ?? err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchRecommendations();
+}, [depression, anxiety, stress, mood]);
 
   return (
     <ScrollView style={styles.container}>

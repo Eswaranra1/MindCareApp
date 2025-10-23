@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors());
@@ -11,6 +12,7 @@ app.use(express.json());
 
 const uri = process.env.MONGODB_URI;
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_app_secret';
 
 async function main() {
   try {
@@ -24,7 +26,7 @@ main();
 
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
-  password: String
+  password: String,
 });
 const User = mongoose.model('User', userSchema);
 
@@ -38,19 +40,48 @@ const mentalResultSchema = new mongoose.Schema({
 });
 const MentalResult = mongoose.model('MentalResult', mentalResultSchema);
 
+// Middleware to protect routes - verifies JWT token
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized: Token missing' });
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // contains email or other info embedded in token
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Unauthorized: Token invalid' });
+  }
+}
+
 app.post('/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+    if (!email || !password)
+      return res.status(400).json({ error: 'Email and password are required.' });
+
+    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return res.status(400).json({ error: 'Please enter a valid email.' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (!emailRegex.test(email))
+      return res.status(400).json({ error: 'Please enter a valid email.' });
+
+    // Password strength validation
+    if (password.length < 6)
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ error: 'User already exists.' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword });
     await user.save();
-    res.json({ message: 'Account created!' });
+
+    // Create JWT token valid for 7 days
+    const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({ message: 'Account created!', token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -60,18 +91,26 @@ app.post('/signup', async (req, res) => {
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+    if (!email || !password)
+      return res.status(400).json({ error: 'Email and password are required.' });
+
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: 'User not found.Please create an account.' });
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Password incorrect' });
-    res.json({ message: 'Login successful!' });
+
+    // Create JWT token valid for 7 days
+    const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({ message: 'Login successful!', token });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// Reset password route remains unchanged but can be protected later
 app.post('/reset-password', async (req, res) => {
   const { email, newPassword } = req.body;
   if (!email || !newPassword) {
@@ -83,7 +122,9 @@ app.post('/reset-password', async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ error: 'User not found. Please create an account.' });
+      return res
+        .status(404)
+        .json({ error: 'User not found. Please create an account.' });
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
@@ -94,10 +135,19 @@ app.post('/reset-password', async (req, res) => {
   }
 });
 
-app.post('/mentalhealthresults', async (req, res) => {
+app.post('/mentalhealthresults', requireAuth, async (req, res) => {
   try {
     const { userEmail, answers, depressionScore, anxietyScore, stressScore } = req.body;
-    const result = new MentalResult({ userEmail, answers, depressionScore, anxietyScore, stressScore });
+    if (req.user.email !== userEmail) {
+      return res.status(403).json({ error: 'Forbidden: Email mismatch' });
+    }
+    const result = new MentalResult({
+      userEmail,
+      answers,
+      depressionScore,
+      anxietyScore,
+      stressScore,
+    });
     await result.save();
     res.json({ message: 'Saved Successfully' });
   } catch (err) {
@@ -106,8 +156,11 @@ app.post('/mentalhealthresults', async (req, res) => {
   }
 });
 
-app.get('/mentalhealthresults/:email', async (req, res) => {
+app.get('/mentalhealthresults/:email', requireAuth, async (req, res) => {
   try {
+    if (req.user.email !== req.params.email) {
+      return res.status(403).json({ error: 'Forbidden: Email mismatch' });
+    }
     const results = await MentalResult.find({ userEmail: req.params.email }).sort({ timestamp: -1 });
     res.json(results);
   } catch (err) {
@@ -115,7 +168,7 @@ app.get('/mentalhealthresults/:email', async (req, res) => {
   }
 });
 
-app.post('/recommendations', async (req, res) => {
+app.post('/recommendations', requireAuth, async (req, res) => {
   const { depression, anxiety, stress, mood } = req.body;
   try {
     const prompt = `
@@ -138,22 +191,22 @@ No explanation, comments, or markdown.
 `.trim();
 
     const routerResp = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
+      'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: "openai/gpt-3.5-turbo",
+        model: 'openai/gpt-3.5-turbo',
         messages: [
-          { role: "system", content: "You answer as a concise JSON-generating assistant." },
-          { role: "user", content: prompt }
-        ]
+          { role: 'system', content: 'You answer as a concise JSON-generating assistant.' },
+          { role: 'user', content: prompt },
+        ],
       },
       {
         headers: {
-          "Authorization": `Bearer ${OPENROUTER_KEY}`,
-          "HTTP-Referer": "https://yourapp.com",
-          "X-Title": "MindCareApp",
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${OPENROUTER_KEY}`,
+          'HTTP-Referer': 'https://yourapp.com',
+          'X-Title': 'MindCareApp',
+          'Content-Type': 'application/json',
         },
-        timeout: 90000
+        timeout: 90000,
       }
     );
     let textOut = routerResp.data.choices?.[0]?.message?.content || '';
@@ -166,32 +219,26 @@ No explanation, comments, or markdown.
     try {
       parsed = JSON.parse(safeTextOut);
     } catch (jsonErr) {
-      throw new Error("Could not parse OpenRouter JSON: " + safeTextOut);
+      throw new Error('Could not parse OpenRouter JSON: ' + safeTextOut);
     }
     res.json(parsed);
   } catch (err) {
     console.error('OpenRouter error:', err.response?.data || err.message);
     res.status(200).json({
       meditations: [
-        { title: "Practice Mindfulness", url: "https://www.youtube.com/embed/O-6f5wQXSu8" },
-        { title: "Deep Breathing", url: "https://youtu.be/acUZdGd_3Dg?si=Fym8bGyVpDbHdE97" }
+        { title: 'Practice Mindfulness', url: 'https://www.youtube.com/embed/O-6f5wQXSu8' },
+        { title: 'Deep Breathing', url: 'https://youtu.be/acUZdGd_3Dg?si=Fym8bGyVpDbHdE97' },
       ],
       musics: [
-        { title: "Calm Piano", url: "https://youtu.be/hlWiI4xVXKY?si=Hpgf_9TGtkBU8ZAY" },
-        { title: "Nature Sounds", url: "https://www.youtube.com/embed/eKFTSSKCzWA" }
+        { title: 'Calm Piano', url: 'https://youtu.be/hlWiI4xVXKY?si=Hpgf_9TGtkBU8ZAY' },
+        { title: 'Nature Sounds', url: 'https://www.youtube.com/embed/eKFTSSKCzWA' },
       ],
       quotes: [
-        "Do something today that your future self will thank you for.",
-        "It always seems impossible until it's done."
+        'Do something today that your future self will thank you for.',
+        "It always seems impossible until it's done.",
       ],
-      affirmations: [
-        "You are enough.",
-        "Breathe, and let go."
-      ],
-      tips: [
-        "Take a short mindful walk outdoors.",
-        "Try 5 minutes of deep breathing."
-      ]
+      affirmations: ['You are enough.', 'Breathe, and let go.'],
+      tips: ['Take a short mindful walk outdoors.', 'Try 5 minutes of deep breathing.'],
     });
   }
 });

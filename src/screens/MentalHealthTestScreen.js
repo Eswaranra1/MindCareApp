@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { BASE_URL } from "../utils/api";
+import { parseJwt } from '../utils/auth';
 import axios from 'axios';
 
 const TEST_QUESTIONS = [
@@ -31,35 +33,43 @@ export default function MentalHealthTestScreen({ navigation, route }) {
     return { depressionScore, anxietyScore, stressScore };
   };
 
-  const submitTest = async () => {
-    if (Object.keys(answers).length !== TEST_QUESTIONS.length) {
-      Alert.alert('Please answer every question.');
-      return;
-    }
-    setLoading(true);
-    const userEmail = route?.params?.email || 'demo@mindcare.com';
-    const { depressionScore, anxietyScore, stressScore } = computeScores();
+const submitTest = async () => {
+  if (Object.keys(answers).length !== TEST_QUESTIONS.length) {
+    Alert.alert('Please answer every question.');
+    return;
+  }
+  setLoading(true);
+  const { depressionScore, anxietyScore, stressScore } = computeScores();
 
-    try {
-      await axios.post(`${BASE_URL}/mentalhealthresults`, {
-        userEmail,
-        answers,
-        depressionScore,
-        anxietyScore,
-        stressScore
-      });
-      setLoading(false);
-      navigation.navigate('ResultAnalysis', {
-        depressionScore,
-        anxietyScore,
-        stressScore,
-        userEmail
-      });
-    } catch (err) {
-      setLoading(false);
-      Alert.alert('Error', err.message || 'Failed to save result');
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const userObj = parseJwt(token);
+    const userEmail = userObj?.email;
+    if (!userEmail) {
+      throw new Error("Session invalid -- try re-login.");
     }
-  };
+
+    await axios.post(`${BASE_URL}/mentalhealthresults`, {
+      userEmail, // guaranteed to match backend JWT payload
+      answers,
+      depressionScore,
+      anxietyScore,
+      stressScore
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setLoading(false);
+    navigation.navigate('ResultAnalysis', {
+      depressionScore,
+      anxietyScore,
+      stressScore,
+      userEmail
+    });
+  } catch (err) {
+    setLoading(false);
+    Alert.alert('Error', err.response?.data?.error || err.message || 'Failed to save result');
+  }
+};
 
   return (
     <View style={styles.container}>

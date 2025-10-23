@@ -1,49 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, TextInput, Text, StyleSheet,
   KeyboardAvoidingView, Platform, TouchableOpacity, Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
-import { signUp } from '../utils/api';
+import { login } from '../utils/api';
 
-export default function SignupScreen({ navigation }) {
+export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const validate = () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Validation', 'All fields are required.');
-      return false;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert('Validation', 'Passwords do not match.');
-      return false;
-    }
-    if (password.length < 6) {
-      Alert.alert('Validation', 'Password must be at least 6 characters.');
-      return false;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Validation', 'Please enter a valid email.');
-      return false;
-    }
-    return true;
-  };
+  useEffect(() => {
+    // Session login: Check if already logged in
+    AsyncStorage.getItem('userToken').then(token => {
+      if (token) {
+        navigation.replace('Home');
+      }
+    });
+  }, []);
 
-  const handleSignup = async () => {
-    if (!validate()) return;
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Validation', 'Email and password required!');
+      return;
+    }
     setLoading(true);
     try {
-      const res = await signUp(email, password);
-      await AsyncStorage.setItem('userEmail', email);
+      const res = await login(email, password);
+      // Store session (token) from backend if available
+      if (res.data.token) {
+        await AsyncStorage.setItem('userToken', res.data.token);
+      } else {
+        await AsyncStorage.setItem('userToken', 'loggedin');
+      }
       Alert.alert('Success', res.data.message);
-      navigation.replace('Login');
+      navigation.replace('Home');
     } catch (err) {
-      Alert.alert('Signup Error', err.response?.data?.error || 'Unknown error');
+      Alert.alert('Login Error', err.response?.data?.error || 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -54,7 +49,7 @@ export default function SignupScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Text style={styles.title}>Create your account</Text>
+      <Text style={styles.title}>Login to Mind Care</Text>
 
       <TextInput
         placeholder="Email"
@@ -63,35 +58,33 @@ export default function SignupScreen({ navigation }) {
         keyboardType="email-address"
         autoCapitalize="none"
         onChangeText={setEmail}
+        textContentType="emailAddress"
         editable={!loading}
       />
       <TextInput
         placeholder="Password"
         style={styles.input}
         value={password}
-        secureTextEntry
         onChangeText={setPassword}
-        editable={!loading}
-      />
-      <TextInput
-        placeholder="Confirm Password"
-        style={styles.input}
-        value={confirmPassword}
         secureTextEntry
-        onChangeText={setConfirmPassword}
+        textContentType="password"
         editable={!loading}
       />
 
       <CustomButton
-        title="Sign Up"
-        onPress={handleSignup}
+        title="Login"
+        onPress={handleLogin}
         loading={loading}
       />
 
-      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+      <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
         <Text style={styles.switchText}>
-          Already have an account? <Text style={styles.linkText}>Login</Text>
+          Don't have an account? <Text style={styles.linkText}>Sign Up</Text>
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('ResetPassword')}>
+        <Text style={styles.resetText}>Forgot Password?</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -129,4 +122,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#3897f0',
   },
+  resetText: {
+    marginTop: 16,
+    textAlign: 'center',
+    color: '#1864ab',
+    fontWeight: '600',
+  }
 });

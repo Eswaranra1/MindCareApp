@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-const LOCAL_IP = '192.168.0.2'; // Change to your computer's LAN IP
+const LOCAL_IP = '192.168.0.10'; // Change to your computer's LAN IP
 
 export const BASE_URL =
   Platform.OS === 'android'

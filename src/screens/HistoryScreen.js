@@ -1,24 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { LineChart } from "react-native-chart-kit";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from "../utils/api";
+import { parseJwt } from '../utils/auth';
 import axios from 'axios';
 
 // Show last N entries in chart
 const MAX_HISTORY = 7;
 
 export default function HistoryScreen({ route }) {
-  // Get email from navigation params if available, fallback demo email
-  const userEmail = route?.params?.email || 'demo@mindcare.com';
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    // Fetch user's test history from MongoDB
-    axios.get(`${BASE_URL}/mentalhealthresults/${userEmail}`)
-      .then(res => setHistory(res.data))
-      .catch(() => setHistory([]))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        const userObj = parseJwt(token);
+        const userEmail = userObj?.email;
+        if (!userEmail) throw new Error("Session expired. Please log in again.");
+        const res = await axios.get(`${BASE_URL}/mentalhealthresults/${userEmail}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setHistory(res.data);
+      } catch (err) {
+        setHistory([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   // Latest N results for graph, most recent first
