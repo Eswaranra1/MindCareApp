@@ -40,6 +40,16 @@ const mentalResultSchema = new mongoose.Schema({
 });
 const MentalResult = mongoose.model('MentalResult', mentalResultSchema);
 
+const voiceAnalysisSchema = new mongoose.Schema({
+  userEmail: String,
+  pitch: Number,
+  speed: Number,
+  emotion: String,
+  mood: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const VoiceAnalysis = mongoose.model('VoiceAnalysis', voiceAnalysisSchema);
+
 // Middleware to protect routes - verifies JWT token
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -240,6 +250,61 @@ No explanation, comments, or markdown.
       affirmations: ['You are enough.', 'Breathe, and let go.'],
       tips: ['Take a short mindful walk outdoors.', 'Try 5 minutes of deep breathing.'],
     });
+  }
+});
+
+// Add this route to handle voice analysis results
+app.post('/voice-analysis', requireAuth, async (req, res) => {
+  try {
+    const { userEmail, pitch, speed, emotion, mood, timestamp } = req.body;
+    
+    if (req.user.email !== userEmail) {
+      return res.status(403).json({ error: 'Forbidden: Email mismatch' });
+    }
+
+    // Create a schema for voice analysis results
+    const VoiceAnalysis = mongoose.model('VoiceAnalysis', new mongoose.Schema({
+      userEmail: String,
+      pitch: Number,
+      speed: Number,
+      emotion: String,
+      mood: String,
+      timestamp: { type: Date, default: Date.now }
+    }));
+
+    const analysis = new VoiceAnalysis({
+      userEmail,
+      pitch,
+      speed,
+      emotion,
+      mood,
+      timestamp: timestamp || Date.now()
+    });
+
+    await analysis.save();
+    res.json({ message: 'Voice analysis saved successfully', data: analysis });
+  } catch (err) {
+    console.error('Voice analysis save error:', err);
+    res.status(500).json({ error: 'Failed to save voice analysis' });
+  }
+});
+
+// Get voice analysis history
+app.get('/voice-analysis/:email', requireAuth, async (req, res) => {
+  try {
+    if (req.user.email !== req.params.email) {
+      return res.status(403).json({ error: 'Forbidden: Email mismatch' });
+    }
+    
+    const VoiceAnalysis = mongoose.model('VoiceAnalysis');
+    const results = await VoiceAnalysis.find({ 
+      userEmail: req.params.email 
+    }).sort({ timestamp: -1 }).limit(20);
+    
+    res.json(results);
+  } catch (err) {
+    console.error('Voice analysis fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch voice analysis' });
   }
 });
 
